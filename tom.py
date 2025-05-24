@@ -9,8 +9,10 @@ import subprocess  # Chạy lệnh GStreamer cho RTSP
 import os  # Thư viện để quản lý file và thư mục
 import argparse  # Thư viện để đọc tham số dòng lệnh
 from upload_ggdrive import upload_to_drive  # Thư viện để upload video lên Google Drive
+from flask import Flask, request, jsonify   # REST
 
 # Khởi tạo PaddleOCR
+mode = "detect"  # Chế độ mặc định là "detect"
 ocr = PaddleOCR(use_angle_cls=True, lang='en', use_gpu=True, show_log=False)
 # - use_angle_cls=True: Bật phân loại góc để phát hiện hướng ảnh
 # - lang='en': Ngôn ngữ tiếng Anh cho OCR
@@ -137,15 +139,13 @@ def ocr_worker(frame, thread_id):
     global last_detected_number, last_detection_time, last_detection_info, detection_expiry_time
 
     try:
-        detect_frame = cv2.resize(frame, (0, 0), fx=0.5, fy=0.5)
-        detect_frame, detected_angle = correct_image_orientation(detect_frame)
-        number_text, confidence, box = perform_simple_ocr(detect_frame)
+        detect_frame, detected_angle = correct_image_orientation(frame)
+        number_text, confidence, box = perform_simple_ocr(frame)
         current_time = time.time()
 
         with thread_lock:
             if number_text:
                 box = np.array(box)
-                box = box * 2
                 if ((box[0][0] > frame.shape[1] * 0.2 and
                      box[1][0] < frame.shape[1] * 0.8 and
                      box[0][1] > frame.shape[0] * 0.1 and
@@ -245,13 +245,14 @@ def start_ocr_process(frame):
     return True
 
 def main():
+    global mode
     # Đọc chế độ từ tham số dòng lệnh
     args = parse_arguments()
-    mode = args.mode
     print(f"Chạy ở chế độ: {mode}")
 
     # Khởi tạo camera
     # USB webcam
+    record_thread = None
     cap = cv2.VideoCapture("tomtep.mp4")  # Thay bằng đường dẫn video của bạn
     # Nếu dùng CSI camera, uncomment dòng sau và comment dòng trên:
     # cap = cv2.VideoCapture("nvarguscamerasrc ! video/x-raw(memory:NVMM),width=1280,height=720,framerate=30/1 ! nvvidconv ! video/x-raw,format=BGR ! videoconvert ! appsink", cv2.CAP_GSTREAMER)
@@ -287,7 +288,7 @@ def main():
         if not ret:
             break
 
-        frame = cv2.resize(frame, (0, 0), fx=0.5, fy=0.5)  # Giảm kích thước để tối ưu
+        frame = cv2.resize(frame, (0, 0), fx=0.25, fy=0.25)  # Giảm kích thước để tối ưu
 
         fps_frame_count += 1
         if current_time - fps_start_time > 1:
@@ -304,6 +305,10 @@ def main():
             start_ocr_process(frame)
         else:
             # Chế độ Record: Thêm khung hình vào hàng đợi
+            if record_thread is None or not record_thread._target == record_worker:
+                record_thread = threading.Thread(target=record_worker, daemon=True)
+                record_thread.start()
+                print("[INFO] Started record_thread")
             try:
                 frame_queue.put_nowait(frame)
             except queue.Full:
@@ -315,5 +320,28 @@ def main():
             thread.join(timeout=1)
     cap.release()
 
+
+app = Flask(__name__)
+@app.route("/mode", methods=["GET", "POST"])
+def mode_endpoint():
+    global mode
+    """
+    GET  /mode           → trả về {"mode": "detect"}
+    POST /mode {"mode":"record"} → đổi sang record
+    """
+    if request.method == "GET":
+        return jsonify(mode)
+
+    data = request.get_json(silent=True) or {}
+    new_mode = data.get("mode", "").lower()
+    if new_mode not in ("detect", "record"):
+        return jsonify(error="mode must be 'detect' or 'record'"), 400
+    mode = new_mode
+    return jsonify(status="ok", mode=new_mode)
+
+def start_api_server():
+    app.run(host="0.0.0.0", port=5000, debug=False, threaded=True)
+
 if __name__ == "__main__":
+    threading.Thread(target=start_api_server, daemon=True).start()
     main()
