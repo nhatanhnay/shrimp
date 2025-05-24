@@ -197,6 +197,9 @@ def record_worker():
                 # Upload video lên Google Drive
                 upload_to_drive(video_path, video_path)
                 print(f"Uploaded vid to gg_drive")
+                # Xóa video cũ
+                os.remove(video_path)
+                print(f"Deleted video: {video_path}")
             else:
                 time.sleep(0.1)  # Nghỉ để giảm tải CPU khi không ghi
                 
@@ -268,9 +271,9 @@ def main():
         record_thread = threading.Thread(target=record_worker, daemon=True)
         record_thread.start()
         # Khởi động luồng RTSP
-        rtsp_thread = threading.Thread(target=rtsp_worker, daemon=True)
-        rtsp_thread.start()
-        print("Chế độ Record: Đang chờ lệnh ghi video. Stream RTSP tại rtsp://JETSON_IP:8554/stream")
+        # rtsp_thread = threading.Thread(target=rtsp_worker, daemon=True)
+        # rtsp_thread.start()
+        # print("Chế độ Record: Đang chờ lệnh ghi video. Stream RTSP tại rtsp://JETSON_IP:8554/stream")
     else:
         print("Chế độ Detect: Bắt đầu nhận diện số. Kết quả lưu vào", LOG_FILE)
 
