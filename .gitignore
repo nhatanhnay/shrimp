@@ -1,1 +1,5 @@
 key.json
+.gitignore
+__pycache__/
+*.pyc
+*.pyo

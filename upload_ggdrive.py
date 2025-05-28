@@ -2,9 +2,9 @@ from google.oauth2 import service_account
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaFileUpload
 
-SERVICE_ACCOUNT_FILE = 'gen-lang-client-0140743891-1b7b651d156c.json'
+SERVICE_ACCOUNT_FILE = 'key.json'
 SCOPES = ['https://www.googleapis.com/auth/drive']
-FOLDER_ID = '1aQTxFjSSE3HFkYEELcAjBgQxUbrN-ZWm'  # ID thư mục Drive bạn đã chia sẻ
+FOLDER_ID = '1He0GAdbkKpgXES_YOsH3bfMY0_Swjw8R'  # ID thư mục Drive bạn đã chia sẻ
 
 def upload_to_drive(file_path, file_name):
     creds = service_account.Credentials.from_service_account_file(
