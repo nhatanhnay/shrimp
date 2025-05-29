@@ -151,8 +151,9 @@ def record_worker(ev: threading.Event):
             out_path = f"vid_{int(start_ts)}.mp4"
             h, w, _ = frame.shape
             cmd = [
-                "-loglevel", "quiet",
-                'ffmpeg','-y','-f','rawvideo','-vcodec','rawvideo',
+                'ffmpeg','-y',
+                '-loglevel', 'quiet',
+                '-f','rawvideo','-vcodec','rawvideo',
                 '-pix_fmt','bgr24','-s',f'{w}x{h}','-r',str(TARGET_FPS),
                 '-i','-','-c:v','libx264','-preset','veryfast','-crf','23',out_path
             ]
