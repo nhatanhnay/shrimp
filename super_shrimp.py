@@ -26,7 +26,7 @@ OCR + RS‑485 Server
 
 # ─────────────────────────────────── Configuration ────────────────────────────
 VIDEO_SOURCE = "tomtep.mp4"      # 0 for webcam
-TARGET_FPS = 30                  # UI refresh rate
+TARGET_FPS = 25                  # UI refresh rate
 OCR_INTERVAL = 0.5               # seconds between OCR runs
 OCR_CONFIDENCE_THRESHOLD = 0.8
 DETECTION_DISPLAY_SECONDS = 2.0
@@ -61,8 +61,8 @@ last_detected_number: Optional[str] = None
 last_detection_expire = 0.0
 serial_port: Optional[serial.Serial] = None
 # shared frame queue for record & stream
-record_q: Queue = Queue(maxsize=45)
-stream_q: Queue = Queue(maxsize=45)
+record_q: Queue = Queue(maxsize=30)
+stream_q: Queue = Queue(maxsize=30)
 
 # ────────────────────────────── RS‑485 helpers ────────────────────────────────
 
@@ -285,6 +285,8 @@ def main():
                     worker_threads.append(t)
                     t.start()
                 last_ocr_time = now
+                record_q.queue.clear()  # clear record queue to avoid stale frames
+                stream_q.queue.clear()  # clear stream queue to avoid stale frames
 
         # record mode
         if 'record' in modes_set:
