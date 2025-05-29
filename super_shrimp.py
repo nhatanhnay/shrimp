@@ -151,6 +151,7 @@ def record_worker(ev: threading.Event):
             out_path = f"vid_{int(start_ts)}.mp4"
             h, w, _ = frame.shape
             cmd = [
+                "-loglevel", "quiet",
                 'ffmpeg','-y','-f','rawvideo','-vcodec','rawvideo',
                 '-pix_fmt','bgr24','-s',f'{w}x{h}','-r',str(TARGET_FPS),
                 '-i','-','-c:v','libx264','-preset','veryfast','-crf','23',out_path
@@ -186,6 +187,7 @@ def stream_worker(ev: threading.Event, frame_period: float, udp_ip: str, udp_por
         if ffmpeg_proc is None:
             cmd = [
                 "ffmpeg", "-y",
+                "-loglevel", "quiet",
                 "-fflags", "+genpts", "-flags", "low_delay", "-fflags", "nobuffer",
                 "-f", "rawvideo", "-pixel_format", "bgr24",
                 "-video_size", f"{w}x{h}", "-framerate", str(int(TARGET_FPS)), "-i", "-",
