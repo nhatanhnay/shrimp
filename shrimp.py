@@ -1,5 +1,5 @@
 import cv2
-import gc
+import subprocess
 import traceback
 import time
 import threading
@@ -131,32 +131,62 @@ def ocr_worker(frame, coords):
 # ───────────────────────────── Recording thread ──────────────────────────────
 
 def record_worker(ev: threading.Event):
-    writer = None
+    ffmpeg_process = None
     start_ts = 0.0
     out_path = ''
-    fourcc = cv2.VideoWriter_fourcc(*'XVID')
+    frame_count = 0
+
     while not ev.is_set():
         try:
             frame = record_q.get(timeout=0.2)
         except Empty:
             continue
-        if writer is None:
+
+        if ffmpeg_process is None:
             start_ts = time.time()
-            out_path = f"vid_{int(start_ts)}.avi"
-            writer = cv2.VideoWriter(out_path, fourcc, 30, (frame.shape[1], frame.shape[0]))
+            out_path = f"vid_{int(start_ts)}.mp4"
+            h, w, _ = frame.shape
+
+            ffmpeg_command = [
+                'ffmpeg',
+                '-y',
+                '-f', 'rawvideo',
+                '-vcodec', 'rawvideo',
+                '-pix_fmt', 'bgr24',
+                '-s', f'{w}x{h}',
+                '-r', '30',
+                '-i', '-',
+                '-c:v', 'libx264',
+                '-preset', 'veryfast',
+                '-crf', '23',
+                out_path
+            ]
+
+            ffmpeg_process = subprocess.Popen(ffmpeg_command, stdin=subprocess.PIPE)
             print(f"[REC] Start {out_path}")
-        writer.write(frame)
+
+        ffmpeg_process.stdin.write(frame.tobytes())
+        frame_count += 1
+
         if time.time() - start_ts >= RECORD_CHUNK_SEC:
-            writer.release(); writer = None
+            ffmpeg_process.stdin.close()
+            ffmpeg_process.wait()
             print(f"[REC] Saved {out_path}")
+
             upload_to_drive(out_path, out_path)
             print("[REC] Uploaded to Drive →", out_path)
+
             try:
                 os.remove(out_path)
             except Exception:
                 print(traceback.format_exc())
-    if writer:
-        writer.release()
+
+            ffmpeg_process = None
+
+    if ffmpeg_process:
+        ffmpeg_process.stdin.close()
+        ffmpeg_process.wait()
+
     print("[REC] Thread stop")
 
 # ───────────────────────────────── Flask API ─────────────────────────────────
