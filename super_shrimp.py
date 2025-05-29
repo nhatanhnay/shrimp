@@ -61,8 +61,8 @@ last_detected_number: Optional[str] = None
 last_detection_expire = 0.0
 serial_port: Optional[serial.Serial] = None
 # shared frame queue for record & stream
-record_q: Queue = Queue(maxsize=90)
-stream_q: Queue = Queue(maxsize=90)
+record_q: Queue = Queue(maxsize=45)
+stream_q: Queue = Queue(maxsize=45)
 
 # ────────────────────────────── RS‑485 helpers ────────────────────────────────
 
