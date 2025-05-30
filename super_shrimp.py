@@ -30,6 +30,8 @@ TARGET_FPS = 25                  # UI refresh rate
 OCR_INTERVAL = 0.5               # seconds between OCR runs
 OCR_CONFIDENCE_THRESHOLD = 0.8
 DETECTION_DISPLAY_SECONDS = 2.0
+fps_deque = deque(maxlen=30)
+prev_time = time.time()
 
 # Detection zone as width‑ratios
 ZONE_L = 0.10
@@ -228,6 +230,17 @@ def api_mode():
     mset = set(m.lower() for m in new_modes)
     if not mset.issubset(valid):
         return jsonify(error="invalid mode(s)", allowed=list(valid)), 400
+    
+    if 'stream' in mset:
+        ip = data.get('udp_ip')
+        port = data.get('udp_port')
+        if not ip or not port:
+            return jsonify(
+                error="Missing 'udp_ip' or 'udp_port' for stream mode"
+            ), 400
+        # Bạn có thể thêm validation IP/port ở đây nếu cần
+        UDP_IP = ip
+        UDP_PORT = port
 
     # If user requested 'detect', it becomes the *only* active mode
     if 'detect' in mset:
@@ -242,6 +255,9 @@ def api_mode():
         if not modes_set:
             modes_set.add('detect')
 
+    if 'stream' in modes_set:
+        print(f"[API] Active modes → {modes_set} (udp_ip={UDP_IP}, udp_port={UDP_IP})")
+        return jsonify(status='ok', modes=list(modes_set), udp_ip=UDP_IP, udp_port=UDP_PORT)
     print(f"[API] Active modes → {modes_set}")
     return jsonify(status='ok', modes=list(modes_set))
 
@@ -257,18 +273,25 @@ def api_shutdown():
 def main():
     init_serial()
     threading.Thread(target=app.run, kwargs={'host':'0.0.0.0','port':5000,'threaded':True,'debug':False}, daemon=True).start()
-
+    global prev_time, fps_deque, last_detected_number, last_detection_expire
+    prev_time = time.time()
     cap = cv2.VideoCapture(VIDEO_SOURCE)
     if not cap.isOpened():
         raise RuntimeError(f"Cannot open video source {VIDEO_SOURCE}")
     fps = cap.get(cv2.CAP_PROP_FPS) or TARGET_FPS
     frame_period = 1.0 / fps
-
     last_ocr_time = 0.0
     rec_thread: Optional[threading.Thread] = None
     stream_thread: Optional[threading.Thread] = None
 
     while not stop_event.is_set():
+        now = time.time()
+        interval = now - prev_time
+        prev_time = now
+        fps_deque.append(interval)
+        # trung bình thời gian xử lý mỗi khung
+        avg_interval = sum(fps_deque) / len(fps_deque)
+        real_fps = 1.0 / avg_interval if avg_interval > 0 else 0.0
         ret, frame = cap.read()
         if not ret:
             print('[MAIN] End of stream')
@@ -331,7 +354,7 @@ def main():
         if now < last_detection_expire and last_detected_number:
             cv2.putText(frame, f"CARD: {last_detected_number}", (10,60), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0,255,0), 2)
 
-        cv2.putText(frame, f"FPS: {fps:.1f}", (10,30), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255,255,0), 1)
+        cv2.putText(frame, f"FPS: {real_fps:.1f}", (10,30), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255,255,0), 1)
         cv2.imshow('OCR RS485', frame)
         if cv2.waitKey(1) & 0xFF == ord('q'):
             break
