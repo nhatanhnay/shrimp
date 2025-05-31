@@ -1,0 +1,7 @@
+# Danh sách các thư viện cần thiết để cài đặt dự án
+opencv-python
+paddleocr
+pyserial
+flask
+google-auth
+google-api-python-client
